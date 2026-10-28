@@ -1,0 +1,63 @@
+"""The Gradio demo's handlers, called directly (no browser, no network). Needs gradio and models/best.pt."""
+import json
+from pathlib import Path
+
+import cv2
+import numpy as np
+import pytest
+
+gr = pytest.importorskip("gradio")
+from app.pipeline import FramePipeline, WEIGHTS  # noqa: E402
+from demo import gradio_app  # noqa: E402
+from ml import rules  # noqa: E402
+
+pytestmark = pytest.mark.skipif(not WEIGHTS.exists(), reason="models/best.pt is not available")
+ROOT = Path(__file__).resolve().parents[2]
+EXAMPLE = ROOT / "demo/examples/images/03_on_phone.jpg"
+
+
+@pytest.fixture(scope="module")
+def setup():
+    cfg = rules.load_config()
+    return cfg, gradio_app.SharedPipeline(FramePipeline(cfg, weights=WEIGHTS))
+
+
+def test_live_session_start_frames_end_writes_a_report(setup):
+    cfg, pipeline = setup
+    live_frame, live_start, live_end = gradio_app.make_live_handlers(cfg, pipeline)
+    blank = np.zeros((120, 160, 3), np.uint8)
+    coach, message = live_start(None)
+    assert "started" in message
+    for _ in range(5):
+        shown, status, counters, fps, coach = live_frame(blank, coach, False)
+    assert shown.shape == (120, 160, 3) and status == "FOCUSED" and "Pickups 0" in counters
+    coach, report, events, message = live_end(coach)
+    assert Path(report).exists() and Path(events).exists() and "0 pickups" in message
+    assert live_end(coach)[3].startswith("No session is running")  # ending twice is harmless
+
+
+def test_live_frame_without_input_does_nothing(setup):
+    cfg, pipeline = setup
+    live_frame, _, _ = gradio_app.make_live_handlers(cfg, pipeline)
+    assert live_frame(None, None, False)[0] is None
+
+
+def test_photo_tab_gives_a_verdict_for_the_example(setup):
+    cfg, pipeline = setup
+    classify = gradio_app.make_image_handler(cfg, pipeline)
+    image, verdict = classify(cv2.cvtColor(cv2.imread(str(EXAMPLE)), cv2.COLOR_BGR2RGB))
+    assert image.ndim == 3 and verdict.startswith("USING a phone") and "ON_PHONE" in verdict
+
+
+def test_footer_headline_comes_from_the_results_file():
+    accuracy = json.loads((ROOT / "results/eval/classification.json").read_text())["methods"]["B-rules"]["metrics"]["accuracy"]
+    assert f"{accuracy:.3f}" in gradio_app.footer_text(WEIGHTS)
+
+
+def test_without_ffmpeg_the_video_is_left_as_it_is(monkeypatch, tmp_path):
+    monkeypatch.setattr(gradio_app.shutil, "which", lambda name: None)
+    assert gradio_app.to_browser_mp4(tmp_path / "a.mp4", tmp_path / "b.mp4") is False
+
+
+def test_the_page_builds():
+    assert isinstance(gradio_app.build_demo(), gr.Blocks)

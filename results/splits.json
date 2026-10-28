@@ -1,0 +1,13 @@
+{
+  "source": "raw splits kept as shipped",
+  "det_train": "train",
+  "det_val": "val",
+  "det_test": "test",
+  "usage_val": "val (label.csv rows)",
+  "usage_test": "test (label.csv rows)",
+  "images": {
+    "train": 18800,
+    "val": 1730,
+    "test": 2349
+  }
+}

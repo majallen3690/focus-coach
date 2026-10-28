@@ -1,0 +1,78 @@
+{
+  "model": "yolo26n.pt",
+  "ultralytics_trained_with": "8.4.190",
+  "torch_trained_with": "2.11.0+cu130",
+  "gpu": "Tesla T4",
+  "train_hours": 1.4992416666666668,
+  "epochs_requested": 20,
+  "epochs_run": 20,
+  "best_epoch": 20,
+  "settings": {
+    "imgsz": 640,
+    "batch": 32,
+    "patience": 15,
+    "seed": 42,
+    "deterministic": true,
+    "optimizer": "auto",
+    "cache": "disk",
+    "workers": 2
+  },
+  "augmentation": {
+    "hsv_h": 0.015,
+    "hsv_s": 0.7,
+    "hsv_v": 0.4,
+    "degrees": 0.0,
+    "translate": 0.1,
+    "scale": 0.5,
+    "shear": 0.0,
+    "perspective": 0.0,
+    "flipud": 0.0,
+    "fliplr": 0.5,
+    "mosaic": 1.0,
+    "mixup": 0.0,
+    "cutmix": 0.0,
+    "copy_paste": 0.0,
+    "auto_augment": "randaugment",
+    "erasing": 0.4,
+    "close_mosaic": 10
+  },
+  "final_val": {
+    "split": "val",
+    "imgsz": 640,
+    "images": 1730,
+    "overall": {
+      "metrics/precision(B)": 0.7203980620417614,
+      "metrics/recall(B)": 0.8596170820385338,
+      "metrics/mAP50(B)": 0.7212117260900911,
+      "metrics/mAP50-95(B)": 0.4871220236710293,
+      "fitness": 0.4871220236710293
+    },
+    "per_class": {
+      "phone": {
+        "precision": 0.8910504675225256,
+        "recall": 0.8252788104089219,
+        "map50": 0.8940256128758166,
+        "map50_95": 0.6295509667340374
+      },
+      "head": {
+        "precision": 0.549745656560997,
+        "recall": 0.8939553536681457,
+        "map50": 0.5483978393043656,
+        "map50_95": 0.3446930806080212
+      }
+    }
+  },
+  "notes": [
+    "Trained with the first version of ml/train_colab.ipynb, before the Phase 2b notebook update.",
+    "epochs=20 and batch=32 (fixed) were used; docs/02-train-colab.md now specifies EPOCHS=60 and AutoBatch. The model was not retrained.",
+    "Optimizer was left on 'auto'; which optimizer Ultralytics actually chose is not recorded in any saved file.",
+    "train_hours includes the one-off disk-cache build in epoch 1.",
+    "best.pt is chosen by Ultralytics on the val split, so val is not a clean held-out set for this model."
+  ],
+  "val_metrics_source": "recomputed locally on CPU with ultralytics 8.4.190",
+  "local_vs_colab_val": {
+    "max_abs_diff": 0.0012391573729864103,
+    "within_tolerance": true,
+    "tolerance": 0.01
+  }
+}

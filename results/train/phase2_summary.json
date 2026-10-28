@@ -1,0 +1,39 @@
+{
+  "gpu": "Tesla T4",
+  "torch": "2.11.0+cu130",
+  "ultralytics": "8.4.190",
+  "args": {
+    "model": "yolo26n.pt",
+    "epochs": 20,
+    "patience": 15,
+    "imgsz": 640,
+    "batch": 32,
+    "seed": 42,
+    "cache": "disk",
+    "optimizer": "auto"
+  },
+  "epochs_run": 20,
+  "best_epoch": 20,
+  "train_hours": 1.4992416666666668,
+  "val_overall": {
+    "metrics/precision(B)": 0.7210030084723045,
+    "metrics/recall(B)": 0.8592884152888327,
+    "metrics/mAP50(B)": 0.721168356349318,
+    "metrics/mAP50-95(B)": 0.4871881436427824,
+    "fitness": 0.4871881436427824
+  },
+  "val_per_class": {
+    "phone": {
+      "precision": 0.8912870227683198,
+      "recall": 0.8240396530359355,
+      "map50": 0.8940494013621555,
+      "map50_95": 0.6296422266539337
+    },
+    "head": {
+      "precision": 0.5507189941762891,
+      "recall": 0.8945371775417299,
+      "map50": 0.5482873113364805,
+      "map50_95": 0.34473406063163137
+    }
+  }
+}
