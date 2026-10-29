@@ -37,12 +37,13 @@ from ml import rules  # noqa: E402
 RULES_PATH = ROOT / "shared/rules.json"
 CLASSIFICATION = ROOT / "results/eval/classification.json"
 EXAMPLES = ROOT / "demo/examples"
-STREAM_EVERY_S = 0.2        # about 5 frames per second from the browser
+STREAM_EVERY_S = 0.4        # about 2.5 frames per second from the browser: more than a tunnel and a CPU can keep up with only builds a backlog
 STREAM_TIME_LIMIT_S = 900   # one stream is cut after this long; it restarts by itself. No concurrency limit, so a second open tab cannot block the stream
 PRIVACY_NOTE = "Frames are sent to this Colab session for processing and are not stored."
 LIVE_START_HINT = "Click Record on the webcam to start"
 LIVE_KEYS_HINT = "End session: button below"
-WEBCAM_SIZE = {"width": 640, "height": 480}  # small frames travel faster to and from the server; the model runs at 640 anyway
+WEBCAM_SIZE = {"width": 480, "height": 360}  # small frames travel faster to and from the server
+MIN_FRAME_GAP_MS = 300      # frames that queued up behind a slow one are skipped, so the picture never falls behind
 
 
 class SharedPipeline:
@@ -108,6 +109,8 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
         coach = coach or new_coach(cfg, pipeline)
         coach.enhance_mode = "on" if force_enhance else "auto"
         now_ms = time.monotonic() * 1000  # the server's clock: when the frame arrived
+        if coach.frames and now_ms - coach.last_t_ms < MIN_FRAME_GAP_MS:
+            return gr.skip(), gr.skip(), gr.skip(), gr.skip(), coach
         if not coach.session.running:  # Record starts the session; no separate Start button
             coach.session.start(now_ms)
         out = coach.handle(Frame(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), now_ms, coach.frames))
@@ -120,7 +123,8 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
         folder = write_report(coach.session, {"source": "browser webcam", "imgsz": pipeline.imgsz, **coach.stats(), "settings": cfg},
                               root=Path(tempfile.mkdtemp(prefix="focus_coach_")))
         s = coach.session.summary()
-        message = (f"Session ended: {s['pickups']} pickups, {s['phone_s']} s on phone, {s['percent_focused']}% focused, "
+        message = (f"Session ended: {s['pickups']} pickups, {s['phone_s']} s on phone, {s['away_s']} s away, "
+                   f"{s['percent_focused']}% focused, "
                    f"longest focus {s['longest_focus_streak_s']} s. While Record is on, a new session starts by itself.")
         coach.session = type(coach.session)(cfg["smoothing"])  # a fresh session; the next frame starts it
         return coach, str(folder / "report.png"), str(folder / "events.csv"), message

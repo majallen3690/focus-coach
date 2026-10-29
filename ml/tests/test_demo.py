@@ -22,8 +22,9 @@ def setup():
     return cfg, gradio_app.SharedPipeline(FramePipeline(cfg, weights=WEIGHTS))
 
 
-def test_live_session_start_frames_end_writes_a_report(setup):
+def test_live_session_start_frames_end_writes_a_report(setup, monkeypatch):
     cfg, pipeline = setup
+    monkeypatch.setattr(gradio_app, "MIN_FRAME_GAP_MS", 0)  # frames here come back to back; none should be skipped
     live_frame, live_end = gradio_app.make_live_handlers(cfg, pipeline)
     blank = np.zeros((120, 160, 3), np.uint8)
     coach = None
@@ -33,6 +34,14 @@ def test_live_session_start_frames_end_writes_a_report(setup):
     coach, report, events, message = live_end(coach)
     assert Path(report).exists() and Path(events).exists() and "0 pickups" in message
     assert live_end(coach)[3].startswith("No session is running")  # ending twice is harmless
+
+
+def test_frames_that_queued_up_are_skipped(setup):
+    cfg, pipeline = setup
+    live_frame, _ = gradio_app.make_live_handlers(cfg, pipeline)
+    blank = np.zeros((120, 160, 3), np.uint8)
+    coach = live_frame(blank, None, False)[-1]
+    assert isinstance(live_frame(blank, coach, False)[0], type(gr.skip())) and coach.frames == 1
 
 
 def test_live_frame_without_input_does_nothing(setup):

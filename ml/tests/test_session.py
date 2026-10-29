@@ -97,7 +97,8 @@ def test_report_writes_three_files(tmp_path):
     folder = write_report(s, {"source": "test", "imgsz": 640}, root=tmp_path)
     assert {p.name for p in folder.iterdir()} == {"events.csv", "summary.json", "report.png"}
     rows = list(csv.DictReader((folder / "events.csv").open()))
-    assert len(rows) == 1 and rows[0]["type"] == ON_PHONE and float(rows[0]["duration_s"]) == pytest.approx(4, abs=0.3)
+    assert [r["type"] for r in rows] == [ON_PHONE, AWAY]  # the AWAY period is listed too, after the phone use
+    assert float(rows[0]["duration_s"]) == pytest.approx(4, abs=0.3) and rows[1]["new_pickup"] == "False"
     summary = json.loads((folder / "summary.json").read_text())
     assert summary["pickups"] == 1 and summary["source"] == "test"
     assert (folder / "report.png").stat().st_size > 5000

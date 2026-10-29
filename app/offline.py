@@ -134,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {error}")
         return 1
     s = result.session.summary()
-    print(f"\n{s['pickups']} pickups, {s['phone_s']} s on phone, {s['percent_focused']}% focused. Saved to {out}")
+    print(f"\n{s['pickups']} pickups, {s['phone_s']} s on phone, {s['away_s']} s away, {s['percent_focused']}% focused. Saved to {out}")
     return 0
 
 

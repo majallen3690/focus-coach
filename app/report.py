@@ -1,6 +1,6 @@
 """The session report: three files in sessions/<date_time>/, then the picture on screen.
 
-    events.csv    one row per distraction: start, end, type, duration_s, new_pickup
+    events.csv    one row per distraction or AWAY period, in time order: start, end, type, duration_s, new_pickup
     summary.json  totals and the settings the session ran with
     report.png    a stats panel and a coloured timeline of FOCUSED / ON_PHONE / ON_CALL / AWAY
 
@@ -21,6 +21,7 @@ import cv2  # noqa: E402
 
 from app.hud import STATE_COLORS, STATE_LABELS  # noqa: E402
 from app.session import Session  # noqa: E402
+from ml.smoothing import AWAY  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSIONS = ROOT / "sessions"
@@ -49,11 +50,14 @@ def write_report(session: Session, meta: dict, root: Path = SESSIONS, folder: Pa
     with (folder / "events.csv").open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["start", "end", "type", "duration_s", "new_pickup"])
-        for d in session.distractions:
-            start = session.wall_start + timedelta(milliseconds=d.start_ms)
-            end = session.wall_start + timedelta(milliseconds=d.end_ms if d.end_ms is not None else d.start_ms)
-            writer.writerow([start.isoformat(timespec="seconds"), end.isoformat(timespec="seconds"), d.type,
-                             round(d.duration_ms / 1000, 1), d.new_pickup])
+        rows = [(d.start_ms, d.end_ms if d.end_ms is not None else d.start_ms, d.type, d.new_pickup) for d in session.distractions]
+        rows += [(s.start_ms, s.end_ms if s.end_ms is not None else s.start_ms, s.state, False)
+                 for s in session.segments if s.state == AWAY]
+        for start_ms, end_ms, kind, new_pickup in sorted(rows):
+            start = session.wall_start + timedelta(milliseconds=start_ms)
+            end = session.wall_start + timedelta(milliseconds=end_ms)
+            writer.writerow([start.isoformat(timespec="seconds"), end.isoformat(timespec="seconds"), kind,
+                             round((end_ms - start_ms) / 1000, 1), new_pickup])
     _draw(session, summary, folder / "report.png")
     return folder
 
