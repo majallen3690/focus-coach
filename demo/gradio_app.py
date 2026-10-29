@@ -1,7 +1,7 @@
 """Focus Coach in the browser (Gradio): a new front end for the same model, rules, smoothing and report code.
 
 Run locally (no public link) from the repo root:
-    python -m demo.gradio_app                 add --share for a temporary public link, --port 7861 to change the port
+    python -m demo.gradio_app                 --port 7861 to change the port; for a public link see the README (localhost.run)
 In Colab, use demo/focus_coach_colab.ipynb. Three tabs:
     Live     webcam frames travel from the browser to this computer and back (about 5 per second)
     Video    upload a clip; it is processed with app/offline.py (the same code as `python -m app.offline`)

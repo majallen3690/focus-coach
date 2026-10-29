@@ -110,17 +110,25 @@ Privacy > Camera, or try `--source 1`. A guide for recording a backup demo clip 
 
 Anyone can try Focus Coach in a browser with no install (live webcam, video upload and single-photo tabs):
 
-1. Open the notebook with the button below and choose Runtime > Change runtime type > **T4 GPU**.
-2. In the config cell set `USE_DRIVE = False`, then Runtime > **Run all**.
-3. When the upload button appears, upload your `best.pt`.
-4. Open the public `lhr.life` link printed by the last cell **in a new tab**, allow the camera, click **Record**, then press
-   **Start**. Without a GPU (Colab's free GPU limit) the live tab is slow.
-5. If the live feed is laggy, use the **Video** tab. The links stop working when the Colab session ends.
+1. Open the notebook with the button below and choose Runtime > Change runtime type > **T4 GPU**. If Colab says the GPU limit
+   is reached, choose *Connect without GPU*: it works, but the live tab is slower.
+2. Runtime > **Run all**. When the upload button appears, upload your `best.pt`.
+3. Open the public `lhr.life` link printed by the last cell **in a new tab**.
+4. Live tab: click the webcam box, allow the camera, then click **Record**. The session starts by itself and the right picture
+   shows what Focus Coach sees. Use your phone for a few seconds, then click **End session** for the report.
+5. If the live picture is laggy, use the **Video** tab. The link stops working when the Colab session ends.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/majallen3690/focus-coach/blob/feature/focus-coach-phases-1-7/demo/focus_coach_colab.ipynb)
 
-Locally: `pip install -r requirements-demo.txt`, then `python -m demo.gradio_app`. To process a clip without any window:
-`python -m app.offline clip.mp4 --out sessions/offline_clip/`.
+Locally (smoother than Colab, since the model runs on your own computer): `pip install -r requirements-demo.txt`, then
+`python -m demo.gradio_app` and open http://127.0.0.1:7860. For a public link to it, run this in a second terminal and open the
+`lhr.life` address it prints:
+
+```powershell
+ssh -R 80:127.0.0.1:7860 nokey@localhost.run
+```
+
+To process a clip without any window: `python -m app.offline clip.mp4 --out sessions/offline_clip/`.
 
 ## Repository layout
 
