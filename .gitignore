@@ -29,3 +29,7 @@ desktop.ini
 # Weights anywhere
 *.pt
 *.onnx
+
+# Working notes, kept locally only
+CLAUDE.md
+docs/

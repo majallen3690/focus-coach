@@ -54,7 +54,7 @@ python ml/prepare_dataset.py
 ```
 
 **Model (not in the repository).** The trained weights are not committed. Either train them on Google Colab with
-`ml/train_colab.ipynb` (see [docs/COLAB.md](docs/COLAB.md); about 1.5 hours on a free T4 GPU) and save the result as
+`ml/train_colab.ipynb` (steps are in the notebook; about 1.5 hours on a free T4 GPU) and save the result as
 `models/best.pt`, or copy an existing `best.pt` there. The COCO weights `models/yolo26n.pt` are downloaded by Ultralytics on first use.
 
 **Reproduce the results** (about 30 minutes on a laptop CPU):
@@ -108,8 +108,14 @@ Privacy > Camera, or try `--source 1`. A guide for recording a backup demo clip 
 
 ## Run it in Colab (optional browser demo)
 
-Anyone can try Focus Coach in a browser with no install: open the notebook in Colab, click **Run all**, and open the link it prints
-(live webcam, video upload and single-photo tabs). Steps are in [docs/COLAB_DEMO.md](docs/COLAB_DEMO.md).
+Anyone can try Focus Coach in a browser with no install (live webcam, video upload and single-photo tabs):
+
+1. Open the notebook with the button below and choose Runtime > Change runtime type > **T4 GPU**.
+2. In the config cell set `USE_DRIVE = False`, then Runtime > **Run all**.
+3. When the upload button appears, upload your `best.pt`.
+4. Open a link printed by the last cell **in a new tab** and allow the camera there. The public `gradio.live` link appears
+   only when Gradio's share server is up; the Colab link always works, but only for your own Google account.
+5. If the live feed is laggy, use the **Video** tab. The links stop working when the Colab session ends.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/majallen3690/focus-coach/blob/feature/focus-coach-phases-1-7/demo/focus_coach_colab.ipynb)
 
@@ -119,10 +125,12 @@ Locally: `pip install -r requirements-demo.txt`, then `python -m demo.gradio_app
 ## Repository layout
 
 ```
-CLAUDE.md          rules for working on the project         docs/        phase plans and PROGRESS.md
-shared/rules.json  all thresholds and app settings           ml/          dataset, rules, smoothing, enhancement,
-app/               the OpenCV desktop app                                 demo/        Gradio demo for Colab (optional)                                 tuning, evaluation, experiments, tests
-results/           metrics, plots, failure grids            report/      report, viva notes, figures
+shared/rules.json  all thresholds and app settings
+ml/                dataset, rules, smoothing, enhancement, tuning, evaluation, experiments, tests
+app/               the OpenCV desktop app
+demo/              Gradio demo for Colab (optional)
+results/           metrics, plots, failure grids
+report/            report, viva notes, figures
 models/ data/ sessions/ third_party/   not committed (downloads and your own data)
 ```
 
