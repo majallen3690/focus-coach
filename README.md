@@ -113,10 +113,12 @@ Anyone can try Focus Coach in a browser with no install (live webcam, video uplo
 1. Open the notebook with the button below and choose Runtime > Change runtime type > **T4 GPU**. If Colab says the GPU limit
    is reached, choose *Connect without GPU*: it works, but the live tab is slower.
 2. Runtime > **Run all**. When the upload button appears, upload your `best.pt`.
-3. Open the public `lhr.life` link printed by the last cell **in a new tab**.
+3. The last cell prints two public links. Use the `trycloudflare.com` one for the **Video** and **Image** tabs (fast, stable)
+   and the `lhr.life` one for the **Live** tab (the only free tunnel tried that passes live updates; it is slow and can expire,
+   so run the cell again if it says "no tunnel").
 4. Live tab: click the webcam box, allow the camera, then click **Record**. The session starts by itself and the right picture
    shows what Focus Coach sees. Use your phone for a few seconds, then click **End session** for the report.
-5. If the live picture is laggy, use the **Video** tab. The link stops working when the Colab session ends.
+5. The links stop working when the Colab session ends.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/majallen3690/focus-coach/blob/feature/focus-coach-phases-1-7/demo/focus_coach_colab.ipynb)
 
