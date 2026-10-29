@@ -77,3 +77,9 @@ def test_photo_tab_finds_a_dark_phone_held_at_the_ear(setup):
     photo = ROOT / "demo/examples/images/05_on_call_side_profile.jpg"
     _, verdict = classify(cv2.cvtColor(cv2.imread(str(photo)), cv2.COLOR_BGR2RGB))
     assert verdict.startswith("USING a phone") and "ON_CALL" in verdict
+
+
+def test_a_video_file_can_be_analysed_without_a_browser(setup):
+    cfg, pipeline = setup
+    video, report, files, message = gradio_app.analyse_video(ROOT / "demo/examples/scripted_clip.mp4", cfg, pipeline)
+    assert video.exists() and report.exists() and len(files) == 3 and "pickups" in message

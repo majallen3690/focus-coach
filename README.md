@@ -113,9 +113,11 @@ Anyone can try Focus Coach in a browser with no install (live webcam, video uplo
 1. Open the notebook with the button below and choose Runtime > Change runtime type > **T4 GPU**. If Colab says the GPU limit
    is reached, choose *Connect without GPU*: it works, but the live tab is slower.
 2. Runtime > **Run all**. When the upload button appears, upload your `best.pt`.
-3. The last cell needs no outside tunnel. The **Video** and **Image** tabs work right there in the notebook output. For the
+3. The launch cell needs no outside tunnel. The **Image** tab works right there in the notebook output. For the
    **Live** tab, click the link the cell prints to open it in a new tab (a page inside the notebook cannot use the camera). That
-   link goes through Colab, so it opens only in a browser signed in to the same Google account.
+   link goes through Colab, so it opens only in a browser signed in to the same Google account. For a **video**, run the next
+   cell and choose a file with Colab's own upload button; it shows the annotated video and the report (the browser upload in the
+   demo's Video tab can fail on larger files).
 4. Live tab: allow the camera, then click **Record**. The session starts by itself and the right picture
    shows what Focus Coach sees. Use your phone for a few seconds, then click **End session** for the report.
 5. The link stops working when the Colab session ends.

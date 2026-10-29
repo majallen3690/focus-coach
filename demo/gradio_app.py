@@ -134,23 +134,29 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
 
 # --- tab 2: video ---------------------------------------------------------------------------------------------
 
+def analyse_video(path: str | Path, cfg: dict, pipeline: SharedPipeline, on_progress=None) -> tuple[Path, Path, list[str], str]:
+    """Process one video file; returns (annotated video, report picture, download files, one-line summary). No browser needed."""
+    out = Path(tempfile.mkdtemp(prefix="focus_coach_video_"))
+    result = run_to_folder(Path(path), out, coach=new_coach(cfg, pipeline), on_progress=on_progress)
+    playable = out / "annotated_h264.mp4"
+    video = playable if to_browser_mp4(out / "annotated.mp4", playable) else out / "annotated.mp4"
+    s = result.session.summary()
+    message = (f"{s['pickups']} pickups, {s['phone_s']} s on phone, {s['percent_focused']}% focused, "
+               f"longest focus {s['longest_focus_streak_s']} s, {s['away_s']} s away.")
+    if video.name == "annotated.mp4":
+        message += " (ffmpeg was not found, so the video may not play in every browser; use the download.)"
+    return video, out / "report.png", [str(out / "events.csv"), str(out / "summary.json"), str(video)], message
+
+
 def make_video_handler(cfg: dict, pipeline: SharedPipeline):
     def process_upload(path: str | None, progress=gr.Progress()):
         if not path:
             raise gr.Error("Upload a video first (an .mp4 works best).")
-        out = Path(tempfile.mkdtemp(prefix="focus_coach_video_"))
         try:
-            result = run_to_folder(Path(path), out, coach=new_coach(cfg, pipeline), on_progress=lambda p: progress(p, desc="Analysing"))
+            video, report, files, message = analyse_video(path, cfg, pipeline, on_progress=lambda p: progress(p, desc="Analysing"))
         except (FileNotFoundError, ValueError) as error:
             raise gr.Error(str(error)) from error
-        playable = out / "annotated_h264.mp4"
-        video = playable if to_browser_mp4(out / "annotated.mp4", playable) else out / "annotated.mp4"
-        s = result.session.summary()
-        message = (f"{s['pickups']} pickups, {s['phone_s']} s on phone, {s['percent_focused']}% focused, "
-                   f"longest focus {s['longest_focus_streak_s']} s, {s['away_s']} s away.")
-        if video.name == "annotated.mp4":
-            message += " (ffmpeg was not found, so the video may not play in every browser; use the download.)"
-        return str(video), str(out / "report.png"), [str(out / "events.csv"), str(out / "summary.json"), str(video)], message
+        return str(video), str(report), files, message
 
     return process_upload
 
