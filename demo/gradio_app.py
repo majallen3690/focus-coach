@@ -38,7 +38,7 @@ RULES_PATH = ROOT / "shared/rules.json"
 CLASSIFICATION = ROOT / "results/eval/classification.json"
 EXAMPLES = ROOT / "demo/examples"
 STREAM_EVERY_S = 0.2        # about 5 frames per second from the browser
-STREAM_TIME_LIMIT_S = 900   # one stream is cut after this long so one user cannot hold the queue; it restarts by itself
+STREAM_TIME_LIMIT_S = 900   # one stream is cut after this long; it restarts by itself. No concurrency limit, so a second open tab cannot block the stream
 PRIVACY_NOTE = "Frames are sent to this Colab session for processing and are not stored."
 LIVE_START_HINT = "Press Start below the video"
 LIVE_KEYS_HINT = "Start / End session: buttons below"
@@ -212,7 +212,7 @@ def build_demo(model_path: Path = WEIGHTS, rules_path: Path = RULES_PATH) -> gr.
             note = gr.Textbox(label="Message", interactive=False)
             report_image, events_file = gr.Image(label="Session report", type="filepath"), gr.File(label="events.csv")
             webcam.stream(live_frame, [webcam, coach_state, force], [annotated, status, counters, fps, coach_state],
-                          stream_every=STREAM_EVERY_S, time_limit=STREAM_TIME_LIMIT_S, concurrency_limit=1)
+                          stream_every=STREAM_EVERY_S, time_limit=STREAM_TIME_LIMIT_S, concurrency_limit=None)
             start.click(live_start, [coach_state], [coach_state, note])
             end.click(live_end, [coach_state], [coach_state, report_image, events_file, note])
         with gr.Tab("Video (upload)"):
