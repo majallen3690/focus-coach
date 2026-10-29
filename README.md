@@ -111,8 +111,7 @@ Privacy > Camera, or try `--source 1`. A guide for recording a backup demo clip 
 Anyone can try Focus Coach in a browser with no install: open the notebook in Colab, click **Run all**, and open the link it prints
 (live webcam, video upload and single-photo tabs). Steps are in [docs/COLAB_DEMO.md](docs/COLAB_DEMO.md).
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YOUR-USERNAME/focus-coach/blob/main/demo/focus_coach_colab.ipynb)
-[replace YOUR-USERNAME with your GitHub name after you push the repo]
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/majallen3690/focus-coach/blob/feature/focus-coach-phases-1-7/demo/focus_coach_colab.ipynb)
 
 Locally: `pip install -r requirements-demo.txt`, then `python -m demo.gradio_app`. To process a clip without any window:
 `python -m app.offline clip.mp4 --out sessions/offline_clip/`.

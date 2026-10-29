@@ -324,6 +324,6 @@ footer shows the accuracy from `results/`. The notebook's runtime-check and smok
 **Not verified (needs you):** a fresh Colab T4 run of the notebook (Drive mount, clone, install, share link); the live tab with a
 real browser webcam and network (the Gradio client cannot call streaming endpoints, so the live logic was tested by calling the
 handlers directly); playing the annotated video in a browser; the live frame rate over the internet. `REPO_URL` in the notebook and
-the Colab badge in the README have `YOUR-USERNAME` placeholders. The scripted clip had a codec artefact (a ghost frame blend between
+the Colab badge in the README point at majallen3690/focus-coach (private). The scripted clip had a codec artefact (a ghost frame blend between
 two photos made a false extra event) until it was encoded from an all-keyframe source; the shipped clip is clean.
 Also record your own `demo/examples/demo.mp4` for the viva (see `app/make_demo_clip.md`).
