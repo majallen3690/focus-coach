@@ -18,8 +18,8 @@ EXAMPLE = ROOT / "demo/examples/images/03_on_phone.jpg"
 
 @pytest.fixture(scope="module")
 def setup():
-    cfg = rules.load_config()
-    return cfg, gradio_app.SharedPipeline(FramePipeline(cfg, weights=WEIGHTS))
+    pipeline = gradio_app.SharedPipeline(FramePipeline(rules.load_config(), weights=WEIGHTS))
+    return pipeline.cfg, pipeline  # the pipeline's config carries the app's phone confidence, as in build_demo
 
 
 def test_live_session_start_frames_end_writes_a_report(setup, monkeypatch):
@@ -69,3 +69,11 @@ def test_without_ffmpeg_the_video_is_left_as_it_is(monkeypatch, tmp_path):
 
 def test_the_page_builds():
     assert isinstance(gradio_app.build_demo(), gr.Blocks)
+
+
+def test_photo_tab_finds_a_dark_phone_held_at_the_ear(setup):
+    cfg, pipeline = setup
+    classify = gradio_app.make_image_handler(cfg, pipeline)
+    photo = ROOT / "demo/examples/images/05_on_call_side_profile.jpg"
+    _, verdict = classify(cv2.cvtColor(cv2.imread(str(photo)), cv2.COLOR_BGR2RGB))
+    assert verdict.startswith("USING a phone") and "ON_CALL" in verdict

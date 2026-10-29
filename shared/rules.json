@@ -27,6 +27,7 @@
       ],
       "smooth_ksize": 3
     },
-    "imgsz": 640
+    "imgsz": 640,
+    "phone_conf": 0.15
   }
 }

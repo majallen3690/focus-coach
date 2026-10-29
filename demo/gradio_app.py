@@ -172,7 +172,8 @@ def make_image_handler(cfg: dict, pipeline: SharedPipeline):
         for person in verdict["persons"]:
             x1, y1, x2, y2 = (int(v) for v in person["head"])
             cv2.rectangle(canvas, (x1, y1), (x2, y2), hud.STATE_COLORS[person["state"]], 3)
-            cv2.putText(canvas, person["state"].replace("_", " "), (x1, max(14, y1 - 6)), hud.FONT, 0.55,
+            label_y = y1 - 6 if y1 > 24 else y1 + 20  # inside the box when the head touches the top edge
+            cv2.putText(canvas, person["state"].replace("_", " "), (x1 + 4, label_y), hud.FONT, 0.55,
                         hud.STATE_COLORS[person["state"]], 2, cv2.LINE_AA)
         states = [p["state"] for p in verdict["persons"]]
         if not states:
@@ -189,6 +190,7 @@ def make_image_handler(cfg: dict, pipeline: SharedPipeline):
 def build_demo(model_path: Path = WEIGHTS, rules_path: Path = RULES_PATH) -> gr.Blocks:
     cfg = json.loads(Path(rules_path).read_text())
     pipeline = SharedPipeline(FramePipeline(cfg, weights=Path(model_path)))
+    cfg = pipeline.cfg  # with the app's phone confidence, so the photo tab applies the same rule as the pipeline
     live_frame, live_end = make_live_handlers(cfg, pipeline)
     process_upload = make_video_handler(cfg, pipeline)
     classify_photo = make_image_handler(cfg, pipeline)

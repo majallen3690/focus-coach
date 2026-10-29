@@ -48,11 +48,12 @@ class FramePipeline:
     def __init__(self, cfg: dict, imgsz: int | None = None, weights: Path = WEIGHTS) -> None:
         if not weights.exists():
             raise FileNotFoundError(f"{weights} not found. Train the model (Phase 2) or copy best.pt there.")
-        self.cfg = cfg
+        phone_conf = cfg["app"].get("phone_conf")  # the app asks for a bit more phone recall than the evaluated setting (see rules.json)
+        self.cfg = cfg if phone_conf is None else {**cfg, "conf": {**cfg["conf"], "phone": phone_conf}}
         self.imgsz = imgsz or cfg["app"]["imgsz"]
         self.model = YOLO(weights)
         self.names = {i: n for i, n in self.model.names.items() if n in ("head", "phone")}
-        self.conf_floor = min(cfg["conf"].values())  # rules.filter_dets applies the per-class thresholds afterwards
+        self.conf_floor = min(self.cfg["conf"].values())  # rules.filter_dets applies the per-class thresholds afterwards
         self.process(np.zeros((self.imgsz, self.imgsz, 3), np.uint8), "off")  # first call is slow; do it before the camera runs
 
     def process(self, frame: np.ndarray, enhance_mode: str = "auto") -> FrameResult:
