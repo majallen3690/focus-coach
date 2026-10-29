@@ -24,11 +24,10 @@ def setup():
 
 def test_live_session_start_frames_end_writes_a_report(setup):
     cfg, pipeline = setup
-    live_frame, live_start, live_end = gradio_app.make_live_handlers(cfg, pipeline)
+    live_frame, live_end = gradio_app.make_live_handlers(cfg, pipeline)
     blank = np.zeros((120, 160, 3), np.uint8)
-    coach, message = live_start(None)
-    assert "started" in message
-    for _ in range(5):
+    coach = None
+    for _ in range(5):  # the first frame starts the session
         shown, status, counters, fps, coach = live_frame(blank, coach, False)
     assert shown.shape == (120, 160, 3) and status == "FOCUSED" and "Pickups 0" in counters
     coach, report, events, message = live_end(coach)
@@ -38,7 +37,7 @@ def test_live_session_start_frames_end_writes_a_report(setup):
 
 def test_live_frame_without_input_does_nothing(setup):
     cfg, pipeline = setup
-    live_frame, _, _ = gradio_app.make_live_handlers(cfg, pipeline)
+    live_frame, _ = gradio_app.make_live_handlers(cfg, pipeline)
     assert live_frame(None, None, False)[0] is None
 
 

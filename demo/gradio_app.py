@@ -40,8 +40,9 @@ EXAMPLES = ROOT / "demo/examples"
 STREAM_EVERY_S = 0.2        # about 5 frames per second from the browser
 STREAM_TIME_LIMIT_S = 900   # one stream is cut after this long; it restarts by itself. No concurrency limit, so a second open tab cannot block the stream
 PRIVACY_NOTE = "Frames are sent to this Colab session for processing and are not stored."
-LIVE_START_HINT = "Press Start below the video"
-LIVE_KEYS_HINT = "Start / End session: buttons below"
+LIVE_START_HINT = "Click Record on the webcam to start"
+LIVE_KEYS_HINT = "End session: button below"
+WEBCAM_SIZE = {"width": 640, "height": 480}  # small frames travel faster to and from the server; the model runs at 640 anyway
 
 
 class SharedPipeline:
@@ -107,28 +108,24 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
         coach = coach or new_coach(cfg, pipeline)
         coach.enhance_mode = "on" if force_enhance else "auto"
         now_ms = time.monotonic() * 1000  # the server's clock: when the frame arrived
+        if not coach.session.running:  # Record starts the session; no separate Start button
+            coach.session.start(now_ms)
         out = coach.handle(Frame(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), now_ms, coach.frames))
         return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), status_line(coach), counters_line(coach), f"{coach.fps:.1f} frames/s", coach
 
-    def live_start(coach: FocusCoach | None):
-        coach = coach or new_coach(cfg, pipeline)
-        if not coach.session.running:
-            coach.session.start(time.monotonic() * 1000)
-        return coach, "Session started. Use the webcam above; press End session when you are done."
-
     def live_end(coach: FocusCoach | None):
         if coach is None or not coach.session.running:
-            return coach, None, None, "No session is running. Press Start first."
+            return coach, None, None, "No session is running. Click Record on the webcam first."
         coach.session.end(coach.last_t_ms)
         folder = write_report(coach.session, {"source": "browser webcam", "imgsz": pipeline.imgsz, **coach.stats(), "settings": cfg},
                               root=Path(tempfile.mkdtemp(prefix="focus_coach_")))
         s = coach.session.summary()
         message = (f"Session ended: {s['pickups']} pickups, {s['phone_s']} s on phone, {s['percent_focused']}% focused, "
-                   f"longest focus {s['longest_focus_streak_s']} s.")
-        coach.session = type(coach.session)(cfg["smoothing"])  # a fresh session for the next Start
+                   f"longest focus {s['longest_focus_streak_s']} s. While Record is on, a new session starts by itself.")
+        coach.session = type(coach.session)(cfg["smoothing"])  # a fresh session; the next frame starts it
         return coach, str(folder / "report.png"), str(folder / "events.csv"), message
 
-    return live_frame, live_start, live_end
+    return live_frame, live_end
 
 
 # --- tab 2: video ---------------------------------------------------------------------------------------------
@@ -188,7 +185,7 @@ def make_image_handler(cfg: dict, pipeline: SharedPipeline):
 def build_demo(model_path: Path = WEIGHTS, rules_path: Path = RULES_PATH) -> gr.Blocks:
     cfg = json.loads(Path(rules_path).read_text())
     pipeline = SharedPipeline(FramePipeline(cfg, weights=Path(model_path)))
-    live_frame, live_start, live_end = make_live_handlers(cfg, pipeline)
+    live_frame, live_end = make_live_handlers(cfg, pipeline)
     process_upload = make_video_handler(cfg, pipeline)
     classify_photo = make_image_handler(cfg, pipeline)
 
@@ -197,23 +194,24 @@ def build_demo(model_path: Path = WEIGHTS, rules_path: Path = RULES_PATH) -> gr.
                     "A webcam, a YOLO26n detector for heads and phones, simple rules and time smoothing. "
                     "If the live tab is laggy, use the Video tab: it is the reliable way to see the full pipeline.")
         with gr.Tab("Live (webcam)"):
-            gr.Markdown("Allow the camera, press **Start**, then pick up your phone for a few seconds. Press **End session** for the report.")
+            gr.Markdown("**1.** Click the webcam box and allow the camera. **2.** Click **Record**: the session starts and the right "
+                        "picture shows what Focus Coach sees, live. **3.** Use your phone for a few seconds. "
+                        "**4.** Click **End session** for the report.")
             coach_state = gr.State(None)
             with gr.Row():
-                webcam = gr.Image(sources=["webcam"], streaming=True, type="numpy", label="Your webcam")
-                annotated = gr.Image(label="Focus Coach", type="numpy")
+                webcam = gr.Image(sources=["webcam"], streaming=True, type="numpy", label="Your webcam",
+                                  webcam_options=gr.WebcamOptions(constraints={"video": WEBCAM_SIZE}))
+                annotated = gr.Image(label="Focus Coach (live)", type="numpy", streaming=True, format="jpeg")
             gr.Markdown(PRIVACY_NOTE)
             force = gr.Checkbox(label="Force low-light enhancement (default: automatic, from shared/rules.json)", value=False)
             with gr.Row():
                 status, counters, fps = (gr.Textbox(label="State", interactive=False), gr.Textbox(label="Counters", interactive=False),
                                          gr.Textbox(label="Speed", interactive=False))
-            with gr.Row():
-                start, end = gr.Button("Start", variant="primary"), gr.Button("End session")
+            end = gr.Button("End session", variant="primary")
             note = gr.Textbox(label="Message", interactive=False)
             report_image, events_file = gr.Image(label="Session report", type="filepath"), gr.File(label="events.csv")
             webcam.stream(live_frame, [webcam, coach_state, force], [annotated, status, counters, fps, coach_state],
                           stream_every=STREAM_EVERY_S, time_limit=STREAM_TIME_LIMIT_S, concurrency_limit=None)
-            start.click(live_start, [coach_state], [coach_state, note])
             end.click(live_end, [coach_state], [coach_state, report_image, events_file, note])
         with gr.Tab("Video (upload)"):
             gr.Markdown("Upload a short clip of someone studying. The whole clip is analysed and you get an annotated video, a report and downloads.")
