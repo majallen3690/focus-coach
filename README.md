@@ -113,8 +113,8 @@ Anyone can try Focus Coach in a browser with no install (live webcam, video uplo
 1. Open the notebook with the button below and choose Runtime > Change runtime type > **T4 GPU**.
 2. In the config cell set `USE_DRIVE = False`, then Runtime > **Run all**.
 3. When the upload button appears, upload your `best.pt`.
-4. Open a link printed by the last cell **in a new tab** and allow the camera there. The public `gradio.live` link appears
-   only when Gradio's share server is up; the Colab link always works, but only for your own Google account.
+4. Open the public `lhr.life` link printed by the last cell **in a new tab**, allow the camera, click **Record**, then press
+   **Start**. Without a GPU (Colab's free GPU limit) the live tab is slow.
 5. If the live feed is laggy, use the **Video** tab. The links stop working when the Colab session ends.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/majallen3690/focus-coach/blob/feature/focus-coach-phases-1-7/demo/focus_coach_colab.ipynb)
