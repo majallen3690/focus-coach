@@ -30,10 +30,11 @@ def test_live_session_start_frames_end_writes_a_report(setup, monkeypatch):
     coach = None
     for _ in range(5):  # the first frame starts the session
         shown, status, counters, fps, coach = live_frame(blank, coach, False)
-    assert shown.shape == (120, 160, 3) and status == "FOCUSED" and "Pickups 0" in counters
+    assert shown.shape == (120, 160, 3) and "FOCUSED" in status and "fc-s-focused" in status
+    assert "Pickups" in counters and "<b>0</b>" in counters
     coach, report, events, message = live_end(coach)
     assert Path(report).exists() and Path(events).exists() and "0 pickups" in message
-    assert live_end(coach)[3].startswith("No session is running")  # ending twice is harmless
+    assert "No session is running" in live_end(coach)[3]  # ending twice is harmless
 
 
 def test_frames_that_queued_up_are_skipped(setup):
@@ -69,6 +70,17 @@ def test_without_ffmpeg_the_video_is_left_as_it_is(monkeypatch, tmp_path):
 
 def test_the_page_builds():
     assert isinstance(gradio_app.build_demo(), gr.Blocks)
+
+
+def test_launch_options_carry_the_look_of_the_page():
+    options = gradio_app.LAUNCH_OPTIONS
+    assert options["theme"] is gradio_app.THEME and ".fc-hero" in options["css"] and ".fc-s-call" in options["css"]
+
+
+def test_verdict_card_is_red_for_a_phone_and_green_otherwise():
+    using = gradio_app.verdict_html("USING a phone | people: ON_CALL")
+    clear = gradio_app.verdict_html("NOT using a phone | people: FOCUSED")
+    assert "fc-v-using" in using and "ON CALL" in using and "fc-v-clear" in clear
 
 
 def test_photo_tab_finds_a_dark_phone_held_at_the_ear(setup):

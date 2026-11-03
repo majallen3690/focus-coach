@@ -11,6 +11,7 @@ Frames are processed in memory. Uploaded files and reports live in a temporary f
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import shutil
 import subprocess
@@ -39,11 +40,18 @@ CLASSIFICATION = ROOT / "results/eval/classification.json"
 EXAMPLES = ROOT / "demo/examples"
 STREAM_EVERY_S = 0.4        # about 2.5 frames per second from the browser: more than a tunnel and a CPU can keep up with only builds a backlog
 STREAM_TIME_LIMIT_S = 900   # one stream is cut after this long; it restarts by itself. No concurrency limit, so a second open tab cannot block the stream
-PRIVACY_NOTE = "Frames are sent to this Colab session for processing and are not stored."
+PRIVACY_NOTE = "Frames are processed in memory and are not stored."
 LIVE_START_HINT = "Click Record on the webcam to start"
 LIVE_KEYS_HINT = "End session: button below"
 WEBCAM_SIZE = {"width": 480, "height": 360}  # small frames travel faster to and from the server
 MIN_FRAME_GAP_MS = 300      # frames that queued up behind a slow one are skipped, so the picture never falls behind
+
+# The look of the page. Gradio 6 takes theme and css at launch(), so every launch call passes LAUNCH_OPTIONS.
+THEME = gr.themes.Soft(primary_hue="teal", neutral_hue="slate", radius_size="lg",
+                       font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "system-ui", "sans-serif"])
+CSS = (Path(__file__).with_name("style.css")).read_text(encoding="utf-8")
+LAUNCH_OPTIONS = {"theme": THEME, "css": CSS, "footer_links": []}
+STATE_CLASSES = {"Not started": "idle", "PAUSED": "paused", "FOCUSED": "focused", "ON PHONE": "phone", "ON CALL": "call", "AWAY": "away"}
 
 
 class SharedPipeline:
@@ -67,16 +75,76 @@ def to_browser_mp4(src: Path, dst: Path) -> bool:
     return run.returncode == 0 and dst.exists()
 
 
-def footer_text(model_path: Path) -> str:
-    """Model, device and the project's headline accuracy, read from results/ (never typed here)."""
+def device_name() -> str:
     import torch
-    device = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU (works, but is slower than a GPU)"
-    text = f"Model: {model_path.name} (YOLO26n fine-tuned on FPI-Det) | Device: {device}"
-    if CLASSIFICATION.exists():
-        data = json.loads(CLASSIFICATION.read_text())
-        m = data["methods"]["B-rules"]["metrics"]
-        text += f" | Detection + rules on {data['images']:,} held-out photos: accuracy {m['accuracy']:.3f}, F1 {m['f1']:.3f}"
+    return torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU (works, but is slower than a GPU)"
+
+
+def headline_metrics() -> dict | None:
+    """The project's headline classification numbers, read from results/ (never typed here)."""
+    if not CLASSIFICATION.exists():
+        return None
+    data = json.loads(CLASSIFICATION.read_text())
+    return {"images": data["images"], **data["methods"]["B-rules"]["metrics"]}
+
+
+def footer_text(model_path: Path) -> str:
+    """Model, device and the project's headline accuracy."""
+    text = f"Model: {model_path.name} (YOLO26n fine-tuned on FPI-Det) | Device: {device_name()}"
+    m = headline_metrics()
+    if m:
+        text += f" | Detection + rules on {m['images']:,} held-out photos: accuracy {m['accuracy']:.3f}, F1 {m['f1']:.3f}"
     return text
+
+
+# --- small HTML pieces ----------------------------------------------------------------------------------------
+
+def hero_html() -> str:
+    pills = ""
+    m = headline_metrics()
+    if m:
+        pills = (f'<div class="fc-pill"><b>{m["accuracy"]:.1%}</b><span>accuracy</span></div>'
+                 f'<div class="fc-pill"><b>{m["f1"]:.3f}</b><span>F1 score</span></div>'
+                 f'<div class="fc-pill"><b>{m["images"]:,}</b><span>held-out photos</span></div>')
+    return ('<div class="fc-hero"><div>'
+            '<div class="fc-eyebrow">Computer Vision mini project</div>'
+            '<h1>Focus Coach</h1>'
+            '<p>A webcam watches you study, spots when you pick up your phone, and tells you how much time it cost.</p>'
+            f'</div><div class="fc-pills">{pills}</div></div>')
+
+
+def steps_html(steps: list[tuple[str, str]]) -> str:
+    items = "".join(f"<li><span>{i}</span><div><b>{title}</b><small>{hint}</small></div></li>" for i, (title, hint) in enumerate(steps, 1))
+    return f'<ol class="fc-steps">{items}</ol>'
+
+
+def card_title(text: str) -> str:
+    return f'<div class="fc-card-title">{html.escape(text)}</div>'
+
+
+def callout(text: str, kind: str = "info") -> str:
+    return f'<div class="fc-callout fc-{kind}">{html.escape(text)}</div>'
+
+
+def verdict_html(text: str) -> str:
+    """The photo verdict as a big coloured card: red when a phone is in use, green when not."""
+    headline, _, detail = text.partition(" | ")
+    kind = "using" if headline.startswith("USING") else "clear"
+    detail_html = f'<div class="fc-verdict-detail">{html.escape(detail.replace("_", " "))}</div>' if detail else ""
+    return f'<div class="fc-verdict fc-v-{kind}"><div class="fc-verdict-title">{html.escape(headline)}</div>{detail_html}</div>'
+
+
+def legend_html() -> str:
+    rows = [("var(--fc-focused)", "Focused", "No phone in use. A phone lying far away on the desk does not count."),
+            ("var(--fc-phone)", "On phone", "A phone is held in front of you, below your head."),
+            ("var(--fc-call)", "On call", "A phone is held at your ear or face."),
+            ("var(--fc-away)", "Away", "No head seen for more than 3 seconds.")]
+    items = "".join(f'<div><span class="fc-chip" style="background:{color}"></span><span><b>{name}</b><small>{what}</small></span></div>'
+                    for color, name, what in rows)
+    return (f'<div class="fc-legend">{items}</div>'
+            '<p class="fc-pipeline">How it decides: the picture is brightened if it is dark (CLAHE), a YOLO26n detector finds heads and phones, '
+            'simple rules turn the boxes into a state, and a state only counts after it holds for about 1.5 seconds, '
+            'so a quick glance is ignored.</p>')
 
 
 # --- tab 1: live ----------------------------------------------------------------------------------------------
@@ -94,18 +162,30 @@ def status_line(coach: FocusCoach | None) -> str:
     return "PAUSED" if coach.session.paused else hud.STATE_LABELS[coach.session.state]
 
 
-def counters_line(coach: FocusCoach | None) -> str:
+def status_html(coach: FocusCoach | None) -> str:
+    label = status_line(coach)
+    return f'<div class="fc-state fc-s-{STATE_CLASSES[label]}"><span class="fc-dot"></span>{label}</div>'
+
+
+def counters_html(coach: FocusCoach | None) -> str:
     if coach is None or not coach.session.running:
-        return "Time 00:00 | Pickups 0 | Phone time 00:00 | Focus streak 00:00"
-    s = coach.session
-    return (f"Time {hud.clock_text(s.elapsed_ms)} | Pickups {s.pickups} | Phone time {hud.clock_text(s.phone_ms)} | "
-            f"Focus streak {hud.clock_text(s.current_streak_ms)}")
+        values = ["00:00", "0", "00:00", "00:00"]
+    else:
+        s = coach.session
+        values = [hud.clock_text(s.elapsed_ms), str(s.pickups), hud.clock_text(s.phone_ms), hud.clock_text(s.current_streak_ms)]
+    labels = ["Time", "Pickups", "Phone time", "Focus streak"]
+    tiles = "".join(f'<div class="fc-tile"><span>{label}</span><b>{value}</b></div>' for label, value in zip(labels, values))
+    return f'<div class="fc-tiles">{tiles}</div>'
+
+
+def speed_html(text: str) -> str:
+    return f'<div class="fc-speed">{text}</div>'
 
 
 def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
     def live_frame(image: np.ndarray | None, coach: FocusCoach | None, force_enhance: bool):
         if image is None:
-            return None, status_line(coach), counters_line(coach), "", coach
+            return None, status_html(coach), counters_html(coach), speed_html(""), coach
         coach = coach or new_coach(cfg, pipeline)
         coach.enhance_mode = "on" if force_enhance else "auto"
         now_ms = time.monotonic() * 1000  # the server's clock: when the frame arrived
@@ -114,11 +194,11 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
         if not coach.session.running:  # Record starts the session; no separate Start button
             coach.session.start(now_ms)
         out = coach.handle(Frame(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), now_ms, coach.frames))
-        return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), status_line(coach), counters_line(coach), f"{coach.fps:.1f} frames/s", coach
+        return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), status_html(coach), counters_html(coach), speed_html(f"{coach.fps:.1f} frames/s"), coach
 
     def live_end(coach: FocusCoach | None):
         if coach is None or not coach.session.running:
-            return coach, None, None, "No session is running. Click Record on the webcam first."
+            return coach, None, None, callout("No session is running. Click Record on the webcam first.", "warn")
         coach.session.end(coach.last_t_ms)
         folder = write_report(coach.session, {"source": "browser webcam", "imgsz": pipeline.imgsz, **coach.stats(), "settings": cfg},
                               root=Path(tempfile.mkdtemp(prefix="focus_coach_")))
@@ -127,7 +207,7 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
                    f"{s['percent_focused']}% focused, "
                    f"longest focus {s['longest_focus_streak_s']} s. While Record is on, a new session starts by itself.")
         coach.session = type(coach.session)(cfg["smoothing"])  # a fresh session; the next frame starts it
-        return coach, str(folder / "report.png"), str(folder / "events.csv"), message
+        return coach, str(folder / "report.png"), str(folder / "events.csv"), callout(message)
 
     return live_frame, live_end
 
@@ -156,7 +236,7 @@ def make_video_handler(cfg: dict, pipeline: SharedPipeline):
             video, report, files, message = analyse_video(path, cfg, pipeline, on_progress=lambda p: progress(p, desc="Analysing"))
         except (FileNotFoundError, ValueError) as error:
             raise gr.Error(str(error)) from error
-        return str(video), str(report), files, message
+        return str(video), str(report), files, callout(message)
 
     return process_upload
 
@@ -201,51 +281,86 @@ def build_demo(model_path: Path = WEIGHTS, rules_path: Path = RULES_PATH) -> gr.
     process_upload = make_video_handler(cfg, pipeline)
     classify_photo = make_image_handler(cfg, pipeline)
 
+    def photo_view(image: np.ndarray | None):
+        shown, text = classify_photo(image)
+        return shown, verdict_html(text)
+
+    live_steps = steps_html([("Allow the camera", "Click the webcam box on the left"), ("Press Record", "The session starts by itself"),
+                             ("Pick up your phone", "Watch the state change on the right"), ("End session", "Get your report below")])
+
     with gr.Blocks(title="Focus Coach") as demo:
-        gr.Markdown("# Focus Coach — Mobile Phone Usage Detection\n"
-                    "A webcam, a YOLO26n detector for heads and phones, simple rules and time smoothing. "
-                    "If the live tab is laggy, use the Video tab: it is the reliable way to see the full pipeline.")
-        with gr.Tab("Live (webcam)"):
-            gr.Markdown("**1.** Click the webcam box and allow the camera. **2.** Click **Record**: the session starts and the right "
-                        "picture shows what Focus Coach sees, live. **3.** Use your phone for a few seconds. "
-                        "**4.** Click **End session** for the report.")
+        gr.HTML(hero_html())
+        with gr.Tab("Live webcam"):
+            gr.HTML(live_steps)
             coach_state = gr.State(None)
-            with gr.Row():
-                webcam = gr.Image(sources=["webcam"], streaming=True, type="numpy", label="Your webcam",
-                                  webcam_options=gr.WebcamOptions(constraints={"video": WEBCAM_SIZE}))
-                annotated = gr.Image(label="Focus Coach (live)", type="numpy", streaming=True, format="jpeg")
-            gr.Markdown(PRIVACY_NOTE)
-            force = gr.Checkbox(label="Force low-light enhancement (default: automatic, from shared/rules.json)", value=False)
-            with gr.Row():
-                status, counters, fps = (gr.Textbox(label="State", interactive=False), gr.Textbox(label="Counters", interactive=False),
-                                         gr.Textbox(label="Speed", interactive=False))
-            end = gr.Button("End session", variant="primary")
-            note = gr.Textbox(label="Message", interactive=False)
-            report_image, events_file = gr.Image(label="Session report", type="filepath"), gr.File(label="events.csv")
+            with gr.Row(equal_height=True):
+                with gr.Column(elem_classes="fc-card"):
+                    gr.HTML(card_title("Your camera"))
+                    webcam = gr.Image(sources=["webcam"], streaming=True, type="numpy", show_label=False,
+                                      webcam_options=gr.WebcamOptions(constraints={"video": WEBCAM_SIZE}))
+                with gr.Column(elem_classes="fc-card"):
+                    gr.HTML(card_title("What Focus Coach sees"))
+                    annotated = gr.Image(type="numpy", streaming=True, format="jpeg", show_label=False,
+                                         placeholder="Press Record on the camera to start")
+            with gr.Row(equal_height=True):
+                with gr.Column(scale=2, min_width=240):
+                    status = gr.HTML(status_html(None))
+                with gr.Column(scale=5):
+                    counters = gr.HTML(counters_html(None))
+                    fps = gr.HTML(speed_html(""))
+            end = gr.Button("End session and get the report", variant="primary", elem_classes="fc-primary")
+            note = gr.HTML(callout("Live view is slower through a free tunnel or on a CPU. The Video tab is the smooth way to see the whole pipeline. "
+                                   + PRIVACY_NOTE))
+            with gr.Accordion("Your session report", open=False) as report_box:
+                with gr.Row():
+                    report_image = gr.Image(type="filepath", show_label=False)
+                    events_file = gr.File(label="events.csv")
+            with gr.Accordion("Settings", open=False):
+                force = gr.Checkbox(label="Force low-light enhancement (default: automatic)", value=False)
             webcam.stream(live_frame, [webcam, coach_state, force], [annotated, status, counters, fps, coach_state],
                           stream_every=STREAM_EVERY_S, time_limit=STREAM_TIME_LIMIT_S, concurrency_limit=None)
-            end.click(live_end, [coach_state], [coach_state, report_image, events_file, note])
-        with gr.Tab("Video (upload)"):
-            gr.Markdown("Upload a short clip of someone studying. The whole clip is analysed and you get an annotated video, a report and downloads.")
-            video_in = gr.Video(sources=["upload"], label="Video")
-            run = gr.Button("Analyse video", variant="primary")
-            video_out = gr.Video(label="Annotated video")
-            video_message = gr.Textbox(label="Summary", interactive=False)
-            report_out, files_out = gr.Image(label="Session report", type="filepath"), gr.File(label="Downloads", file_count="multiple")
-            run.click(process_upload, [video_in], [video_out, report_out, files_out, video_message])
-            clips = [p for p in (EXAMPLES / "demo.mp4", EXAMPLES / "scripted_clip.mp4") if p.exists()]  # your own clip first
-            if clips:
-                gr.Examples(examples=[[str(p)] for p in clips], inputs=[video_in], label="Example clips")
-        with gr.Tab("Image (upload)"):
-            gr.Markdown("Upload one photo. Each person's state is shown, and the verdict is for the whole image. No time smoothing here.")
-            image_in = gr.Image(label="Photo", type="numpy")
-            image_run = gr.Button("Analyse photo", variant="primary")
-            image_out, verdict_out = gr.Image(label="Result", type="numpy"), gr.Textbox(label="Verdict", interactive=False)
-            image_run.click(classify_photo, [image_in], [image_out, verdict_out])
-            images = sorted((EXAMPLES / "images").glob("*.jpg"))
-            if images:
-                gr.Examples(examples=[[str(p)] for p in images], inputs=[image_in], label="Examples from the held-out photos")
-        gr.Markdown(footer_text(Path(model_path)))
+            end.click(live_end, [coach_state], [coach_state, report_image, events_file, note]).then(
+                lambda: gr.Accordion(open=True), None, report_box)
+        with gr.Tab("Video upload"):
+            gr.HTML(steps_html([("Choose a clip", "A short .mp4 of someone studying"), ("Analyse", "The whole clip is processed"),
+                                ("Read the results", "Annotated video, report and downloads")]))
+            with gr.Row(equal_height=False):
+                with gr.Column(elem_classes="fc-card"):
+                    gr.HTML(card_title("Your video"))
+                    video_in = gr.Video(sources=["upload"], show_label=False)
+                    run = gr.Button("Analyse video", variant="primary", elem_classes="fc-primary")
+                    clips = [p for p in (EXAMPLES / "demo.mp4", EXAMPLES / "scripted_clip.mp4") if p.exists()]  # your own clip first
+                    if clips:
+                        gr.Examples(examples=[[str(p)] for p in clips], inputs=[video_in], label="Or try an example clip")
+                with gr.Column(elem_classes="fc-card"):
+                    gr.HTML(card_title("Result"))
+                    video_out = gr.Video(show_label=False)
+                    video_message = gr.HTML(callout("Results appear here once the video is analysed."))
+            with gr.Accordion("Report and downloads", open=False) as video_report_box:
+                with gr.Row():
+                    report_out = gr.Image(show_label=False, type="filepath")
+                    files_out = gr.File(label="Downloads", file_count="multiple")
+            run.click(process_upload, [video_in], [video_out, report_out, files_out, video_message]).then(
+                lambda: gr.Accordion(open=True), None, video_report_box)
+        with gr.Tab("Photo upload"):
+            gr.HTML(steps_html([("Choose a photo", "One photo, one or more people"), ("Analyse", "Every person gets a state"),
+                                ("Read the verdict", "Boxes show the head and the phone")]))
+            with gr.Row(equal_height=False):
+                with gr.Column(elem_classes="fc-card"):
+                    gr.HTML(card_title("Your photo"))
+                    image_in = gr.Image(type="numpy", show_label=False)
+                    image_run = gr.Button("Analyse photo", variant="primary", elem_classes="fc-primary")
+                    images = sorted((EXAMPLES / "images").glob("*.jpg"))
+                    if images:
+                        gr.Examples(examples=[[str(p)] for p in images], inputs=[image_in], label="Or try a photo from the held-out set")
+                with gr.Column(elem_classes="fc-card"):
+                    gr.HTML(card_title("Result"))
+                    image_out = gr.Image(type="numpy", show_label=False)
+                    verdict_out = gr.HTML(callout("The verdict appears here. No time smoothing is used for single photos."))
+            image_run.click(photo_view, [image_in], [image_out, verdict_out])
+        with gr.Accordion("What do the colours mean?", open=False):
+            gr.HTML(legend_html())
+        gr.HTML(f'<div class="fc-footer">{html.escape(footer_text(Path(model_path)))}</div>')
     return demo
 
 
@@ -254,7 +369,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--share", action="store_true", help="create a temporary public link")
     ap.add_argument("--port", type=int, default=7860)
     args = ap.parse_args(argv)
-    build_demo().queue().launch(share=args.share, server_port=args.port)
+    build_demo().queue().launch(share=args.share, server_port=args.port, **LAUNCH_OPTIONS)
 
 
 if __name__ == "__main__":
