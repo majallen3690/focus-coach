@@ -86,17 +86,26 @@ Tests: `pytest ml/tests`.
 
 ## Run the app
 
+**In VS Code:** open the repo folder, then press **F5** and pick *Focus Coach (webcam)* (the interpreter is the repo's `.venv`;
+the run configs are in `.vscode/launch.json`). Other entries: *start at once*, *video file*, and *Check the camera (5 s test)*.
+`Ctrl+Shift+B` runs the webcam app as a task. A window opens with the live picture; click it, then press **S** to start.
+The phone is outlined in the picture whenever it is detected, and the banner turns ON PHONE / ON CALL after about 1.5 s.
+
 ```powershell
 python -m app.focus_coach                       # webcam 0
+python -m app.focus_coach --check-camera        # 5 s test: does the camera send live video?
 python -m app.focus_coach --source demo.mp4     # a recorded clip instead of the webcam
 python -m app.benchmark                         # speed of the pipeline on this computer
 ```
+
+If the picture is a crossed-out camera icon, Windows is serving a "camera off" placeholder: open the laptop's privacy shutter or
+press its camera key (often Fn + F8), then run `--check-camera` again. The app also shows this warning on screen.
 
 | Key | Action |
 |---|---|
 | **S** | start, pause, resume the session |
 | **E** | end the session and show the report |
-| **D** | show or hide the detection boxes |
+| **D** | also outline the heads (phones are always outlined) |
 | **C** | cycle low-light enhancement: auto, on, off |
 | **Q** | quit (asks whether to save if a session is running) |
 

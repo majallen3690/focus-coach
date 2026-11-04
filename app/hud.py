@@ -54,14 +54,16 @@ def clock_text(ms: float) -> str:
     return f"{seconds // 3600:d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}" if seconds >= 3600 else f"{seconds // 60:02d}:{seconds % 60:02d}"
 
 
-def draw_boxes(frame: np.ndarray, dets: list[dict], user_head: list[float] | None) -> None:
-    """Debug view: every head and phone that passed its confidence threshold, with class and confidence."""
+def draw_boxes(frame: np.ndarray, dets: list[dict], user_head: list[float] | None, only: str | None = None) -> None:
+    """Every head and phone that passed its confidence threshold, with class and confidence (only= limits it to one class)."""
     s = _scale(frame)
     for d in dets:
+        if only and d["cls"] != only:
+            continue
         x1, y1, x2, y2 = (int(v) for v in d["box"])
-        thick = max(2, int(3 * s)) if d["box"] == user_head else max(1, int(2 * s))
+        thick = max(2, int(3 * s)) if d["box"] == user_head or d["cls"] == "phone" else max(1, int(2 * s))
         cv2.rectangle(frame, (x1, y1), (x2, y2), BOX_COLORS[d["cls"]], thick)
-        _text(frame, f"{d['cls']} {d['conf']:.2f}", (x1, max(int(18 * s), y1 - 6)), 0.5, BOX_COLORS[d["cls"]], 1)
+        _text(frame, f"{d['cls']} {d['conf']:.2f}", (x1, max(int(18 * s), y1 - 6)), 0.6, BOX_COLORS[d["cls"]], 2)
 
 
 def draw_banner(frame: np.ndarray, state: str, note: str = "") -> None:
@@ -118,6 +120,22 @@ def draw_tip(frame: np.ndarray, start_text: str = START_HINT) -> None:
         _text(frame, text, ((w - tw) // 2, int(0.67 * h) + i * int(46 * s)), size, color, 2 if i == 0 else 1)
     tw, _ = _measure(frame, start_text, 0.9, 2)
     _text(frame, start_text, ((w - tw) // 2, int(0.80 * h)), 0.9, (120, 220, 255), 2)
+
+
+CAMERA_PROBLEM = ["The camera is sending a still picture, not live video.",
+                  "Open the privacy shutter / press the camera key (Fn + F8 on many laptops),",
+                  "close other apps using the camera, then check Windows Settings > Privacy > Camera."]
+
+
+def draw_camera_problem(frame: np.ndarray) -> None:
+    """Shown when the camera has stopped changing: nothing can be detected until it shows a real picture."""
+    h, w = frame.shape[:2]
+    s = _scale(frame)
+    top = int(0.22 * h)
+    _panel(frame, int(0.05 * w), top, int(0.95 * w), top + int(len(CAMERA_PROBLEM) * 44 * s + 24 * s), 0.85)
+    for i, line in enumerate(CAMERA_PROBLEM):
+        tw, _ = _measure(frame, line, 0.7, 2 if i == 0 else 1)
+        _text(frame, line, ((w - tw) // 2, top + int((i + 1) * 44 * s)), 0.7, (80, 200, 255) if i == 0 else WHITE, 2 if i == 0 else 1)
 
 
 def draw_message(frame: np.ndarray, lines: list[str]) -> None:

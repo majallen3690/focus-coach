@@ -3,8 +3,10 @@
 Run from the repo root:
     python -m app.focus_coach                          webcam 0
     python -m app.focus_coach --source demo.mp4        a recorded clip instead of the webcam
-Keys: S start / pause / resume   E end session and show the report   D debug boxes   C enhancement auto/on/off   Q quit
-Options: --imgsz 480 (faster)   --save-video out.mp4 (writes the annotated picture; off by default)
+Keys: S start / pause / resume   E end session and show the report   D head boxes   C enhancement auto/on/off   Q quit
+The phone is outlined whenever it is detected; D also outlines the heads.
+Options: --check-camera (test that the camera sends live video, then exit)   --imgsz 480 (faster)
+         --save-video out.mp4 (writes the annotated picture; off by default)
          --autostart (begin the session at once)   --no-display (no windows, for scripted runs; implies --autostart)
 Privacy: frames are processed in memory and never saved unless --save-video is given. Only event times and totals are
 written, to sessions/<date_time>/.
@@ -32,6 +34,7 @@ WINDOW = "Focus Coach"
 FPS_SMOOTHING = 0.9   # weight of the old value in the running FPS average
 SAVED_VIDEO_FPS = 15.0
 NO_FRAME_TIMEOUT_S = 1.0
+CHECK_CAMERA_S = 5.0
 
 
 class FocusCoach:
@@ -44,6 +47,7 @@ class FocusCoach:
         self.start_hint = hud.START_HINT
         self.session = Session(cfg["smoothing"])
         self.debug = False
+        self.camera_problem = False                             # set by the run loop when the camera sends a still picture
         self.enhance_mode = "auto"
         self.fps = 0.0
         self.last_t_ms = 0.0
@@ -70,8 +74,7 @@ class FocusCoach:
         self.session.update(frame.t_ms, result.state)
 
         image = result.image
-        if self.debug:
-            hud.draw_boxes(image, result.dets, result.user_head)
+        hud.draw_boxes(image, result.dets, result.user_head, only=None if self.debug else "phone")  # D adds the heads
         s = self.session
         if s.running and s.paused:
             hud.draw_idle_banner(image, "PAUSED   (S to resume)")
@@ -83,6 +86,8 @@ class FocusCoach:
             hud.draw_counters(image, s.elapsed_ms, s.pickups, s.phone_ms, s.current_streak_ms)
         else:
             hud.draw_tip(image, self.start_hint)
+        if self.camera_problem:
+            hud.draw_camera_problem(image)
         hud.draw_footer(image, self.fps, result.infer_ms, self._enhance_text(result.enhanced), self.keys_hint)
         return image
 
@@ -126,8 +131,36 @@ def ask_to_save(image: np.ndarray) -> str:
     return {ord("y"): "save", ord("Y"): "save", ord("n"): "discard", ord("N"): "discard"}.get(key, "cancel")
 
 
+def check_camera(source_text: str, cfg: dict) -> int:
+    """Open the camera for a few seconds and say whether it sends live video. Exit code 0 = live picture."""
+    try:
+        source = FrameSource(parse_source(source_text)).start()
+    except (CaptureError, FileNotFoundError) as error:
+        print(f"Error: {error}")
+        return 1
+    frames, brightness, deadline = 0, 0.0, time.monotonic() + CHECK_CAMERA_S
+    try:
+        while time.monotonic() < deadline:
+            frame = source.read(NO_FRAME_TIMEOUT_S)
+            if frame is not None:
+                frames, brightness = frames + 1, float(frame.image.mean())
+    except CaptureError as error:
+        print(f"Error: {error}")
+        return 1
+    finally:
+        source.release()
+    print(f"Camera {source_text}: {frames} frames in {CHECK_CAMERA_S:.0f} s, picture brightness {brightness:.0f}/255.")
+    if frames and source.frozen_s < cfg["app"]["camera_frozen_s"]:
+        print("OK: the camera sends live video." + (" It is dark; the app will brighten it (CLAHE)." if brightness < cfg["app"]["low_light_threshold"] else ""))
+        return 0
+    print("PROBLEM: " + " ".join(hud.CAMERA_PROBLEM))
+    return 1
+
+
 def run(args: argparse.Namespace) -> int:
     cfg = rules.load_config()
+    if args.check_camera:
+        return check_camera(args.source, cfg)
     display = not args.no_display
     print("Loading the model...")
     try:
@@ -155,6 +188,10 @@ def run(args: argparse.Namespace) -> int:
             if autostart:
                 app.session.start(frame.t_ms)
                 autostart = False
+            frozen = source.frozen_s >= cfg["app"]["camera_frozen_s"]
+            if frozen and not app.camera_problem:
+                print("Warning: " + hud.CAMERA_PROBLEM[0] + " " + " ".join(hud.CAMERA_PROBLEM[1:]))
+            app.camera_problem = frozen
             image = app.handle(frame)
             if args.save_video:
                 if writer is None:
@@ -208,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--save-video", default=None, metavar="PATH", help="write the annotated picture to this .mp4")
     ap.add_argument("--autostart", action="store_true", help="start the session immediately")
     ap.add_argument("--no-display", action="store_true", help="no windows (implies --autostart)")
+    ap.add_argument("--check-camera", action="store_true", help="only test that the camera sends live video, then exit")
     return run(ap.parse_args(argv))
 
 

@@ -51,6 +51,14 @@ class FrameSource:
         self.error: str | None = None
         self.frames_read = 0
         self.handed_out = 0
+        self._last_image: np.ndarray | None = None
+        self._changed_at = time.monotonic()
+
+    @property
+    def frozen_s(self) -> float:
+        """Seconds the camera has sent the exact same picture. A real sensor always has noise, so a long stretch of identical
+        frames means Windows is serving a 'camera off' placeholder (privacy shutter, camera key, blocked access)."""
+        return time.monotonic() - self._changed_at if self.is_camera else 0.0
 
     def start(self) -> "FrameSource":
         if self.is_camera:
@@ -94,6 +102,9 @@ class FrameSource:
                 continue
             failures = 0
             t_ms = index / self.fps * 1000 if not self.is_camera else (time.monotonic() - start) * 1000
+            if self.is_camera and (self._last_image is None or not np.array_equal(image, self._last_image)):
+                self._changed_at = time.monotonic()
+            self._last_image = image
             with self._cond:
                 self._latest = Frame(image, t_ms, index)
                 self.frames_read += 1

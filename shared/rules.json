@@ -28,6 +28,7 @@
       "smooth_ksize": 3
     },
     "imgsz": 640,
-    "phone_conf": 0.15
+    "phone_conf": 0.15,
+    "camera_frozen_s": 3
   }
 }
