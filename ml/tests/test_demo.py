@@ -95,3 +95,12 @@ def test_a_video_file_can_be_analysed_without_a_browser(setup):
     cfg, pipeline = setup
     video, report, files, message = gradio_app.analyse_video(ROOT / "demo/examples/scripted_clip.mp4", cfg, pipeline)
     assert video.exists() and report.exists() and len(files) == 3 and "pickups" in message
+
+
+def test_the_result_video_is_shrunk_to_a_small_even_size():
+    from app.offline import fit_for_video
+    big = np.zeros((1080, 1920, 3), np.uint8)
+    assert fit_for_video(big, 640).shape[:2] == (360, 640)
+    small = np.zeros((361, 481, 3), np.uint8)
+    assert fit_for_video(small, 640) is small or fit_for_video(small, 640).shape[:2] == (360, 480)
+    assert fit_for_video(big, None) is big

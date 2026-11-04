@@ -94,16 +94,28 @@ def process_video(path: Path, cfg: dict | None = None, sample_fps: float = DEFAU
     return frames(), result
 
 
+def fit_for_video(image: np.ndarray, max_side: int | None) -> np.ndarray:
+    """Shrink a frame so its longer side is at most max_side (both sides even, as video encoders need). Only the saved video
+    is scaled; detection has already run on the full frame."""
+    h, w = image.shape[:2]
+    scale = min(1.0, max_side / max(h, w)) if max_side else 1.0
+    new_w, new_h = int(w * scale) // 2 * 2, int(h * scale) // 2 * 2
+    return image if (new_w, new_h) == (w, h) else cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+
 def run_to_folder(path: Path, out_dir: Path, cfg: dict | None = None, sample_fps: float = DEFAULT_SAMPLE_FPS,
                   imgsz: int | None = None, coach: FocusCoach | None = None, write_video: bool = True,
-                  on_progress: Callable[[float], None] | None = None) -> OfflineResult:
-    """The whole job: process the video and write events.csv, summary.json, report.png (and annotated.mp4) to out_dir."""
+                  on_progress: Callable[[float], None] | None = None, max_side: int | None = None) -> OfflineResult:
+    """The whole job: process the video and write events.csv, summary.json, report.png (and annotated.mp4) to out_dir.
+
+    max_side shrinks only the annotated video (the browser demo uses it so the result downloads quickly)."""
     frames, result = process_video(path, cfg, sample_fps, imgsz, coach)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     writer: cv2.VideoWriter | None = None
     for image in frames:
         if write_video:
+            image = fit_for_video(image, max_side)
             if writer is None:
                 h, w = image.shape[:2]
                 writer = cv2.VideoWriter(str(out_dir / "annotated.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), sample_fps, (w, h))

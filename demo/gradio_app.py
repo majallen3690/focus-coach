@@ -45,6 +45,8 @@ LIVE_START_HINT = "Click Record on the webcam to start"
 LIVE_KEYS_HINT = "End session: button below"
 WEBCAM_SIZE = {"width": 480, "height": 360}  # small frames travel faster to and from the server
 MIN_FRAME_GAP_MS = 300      # frames that queued up behind a slow one are skipped, so the picture never falls behind
+VIDEO_MAX_SIDE = 640        # the annotated result video is shrunk to this, so it downloads fast even through a slow tunnel
+VIDEO_CRF = 30              # H.264 quality: higher means a smaller file
 
 # The look of the page. Gradio 6 takes theme and css at launch(), so every launch call passes LAUNCH_OPTIONS.
 THEME = gr.themes.Soft(primary_hue="teal", neutral_hue="slate", radius_size="lg",
@@ -70,8 +72,9 @@ def to_browser_mp4(src: Path, dst: Path) -> bool:
     """Re-encode to H.264 so every browser can play it. Returns False when ffmpeg is not available."""
     if shutil.which("ffmpeg") is None:
         return False
-    run = subprocess.run(["ffmpeg", "-y", "-i", str(src), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-                          str(dst)], capture_output=True, text=True)
+    # fast preset and a higher CRF: a small file matters more than fine detail, because it has to travel through a tunnel
+    run = subprocess.run(["ffmpeg", "-y", "-i", str(src), "-c:v", "libx264", "-preset", "veryfast", "-crf", str(VIDEO_CRF),
+                          "-pix_fmt", "yuv420p", "-an", "-movflags", "+faststart", str(dst)], capture_output=True, text=True)
     return run.returncode == 0 and dst.exists()
 
 
@@ -217,12 +220,12 @@ def make_live_handlers(cfg: dict, pipeline: SharedPipeline):
 def analyse_video(path: str | Path, cfg: dict, pipeline: SharedPipeline, on_progress=None) -> tuple[Path, Path, list[str], str]:
     """Process one video file; returns (annotated video, report picture, download files, one-line summary). No browser needed."""
     out = Path(tempfile.mkdtemp(prefix="focus_coach_video_"))
-    result = run_to_folder(Path(path), out, coach=new_coach(cfg, pipeline), on_progress=on_progress)
+    result = run_to_folder(Path(path), out, coach=new_coach(cfg, pipeline), on_progress=on_progress, max_side=VIDEO_MAX_SIDE)
     playable = out / "annotated_h264.mp4"
     video = playable if to_browser_mp4(out / "annotated.mp4", playable) else out / "annotated.mp4"
     s = result.session.summary()
     message = (f"{s['pickups']} pickups, {s['phone_s']} s on phone, {s['percent_focused']}% focused, "
-               f"longest focus {s['longest_focus_streak_s']} s, {s['away_s']} s away.")
+               f"longest focus {s['longest_focus_streak_s']} s, {s['away_s']} s away. Video: {video.stat().st_size / 1e6:.1f} MB.")
     if video.name == "annotated.mp4":
         message += " (ffmpeg was not found, so the video may not play in every browser; use the download.)"
     return video, out / "report.png", [str(out / "events.csv"), str(out / "summary.json"), str(video)], message
